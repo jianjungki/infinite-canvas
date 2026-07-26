@@ -27,7 +27,7 @@ export type CanvasNodeStatus = "idle" | "success" | "loading" | "error";
 export type CanvasGenerationMode = "text" | "image" | "video" | "audio";
 export type CanvasImageGenerationType = "generation" | "edit";
 export type CanvasStoredImageReference = { source: string; role: ImageReferenceRole };
-export type CanvasVideoTask = { id: string; provider: "openai" | "seedance"; model: string };
+export type CanvasVideoTask = { id: string; provider: "openai" | "seedance" | "plugin"; model: string };
 
 export type CanvasNodeMetadata = {
     content?: string;

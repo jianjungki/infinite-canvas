@@ -1,9 +1,27 @@
-name: Docker image
+name: Build Docker image
 
 on:
   push:
+    branches: ["main"]
     tags: ["v*"]
+    paths:
+      - ".github/workflows/docker-image.yml"
+      - "web/**"
+      - "Dockerfile"
+      - "nginx.conf"
+      - "VERSION"
+      - "CHANGELOG.md"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "额外发布的镜像标签，例如 staging"
+        required: false
+        type: string
+      publish_latest:
+        description: "同时更新 latest 标签"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -12,20 +30,30 @@ permissions:
 env:
   IMAGE_NAME: ghcr.io/basketikun/infinite-canvas
 
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   meta:
     runs-on: ubuntu-latest
     outputs:
       tags: ${{ steps.meta.outputs.tags }}
       labels: ${{ steps.meta.outputs.labels }}
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=latest,enable=${{ github.event_name != 'workflow_dispatch' || inputs.publish_latest }}
+            type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+            type=ref,event=branch
             type=ref,event=tag
-            type=sha,prefix=
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
 
   build:
     needs: meta
@@ -113,3 +141,23 @@ jobs:
           done < <(find "$RUNNER_TEMP/digests" -type f -printf '%f\n' | sort)
 
           docker buildx imagetools create "${tag_args[@]}" "${digest_args[@]}"
+
+      - name: Inspect published image
+        run: docker buildx imagetools inspect "${IMAGE_NAME}:${{ needs.meta.outputs.version }}"
+
+      - name: Write usage summary
+        shell: bash
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          {
+            echo "## Docker image published"
+            echo
+            echo "Image: \`${IMAGE_NAME}:${VERSION}\`"
+            echo
+            echo '```bash'
+            echo "docker pull ${IMAGE_NAME}:${VERSION}"
+            echo "docker compose pull app"
+            echo "docker compose up -d app"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

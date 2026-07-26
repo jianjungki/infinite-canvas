@@ -15,11 +15,39 @@ cd infinite-canvas
 docker compose up -d
 ```
 
+主应用镜像发布在 `ghcr.io/basketikun/infinite-canvas`，同时支持 `linux/amd64` 和 `linux/arm64`。`main` 分支更新、推送 `v*` 版本标签或在 GitHub Actions 中手动运行 **Build Docker image** 都会构建镜像。
+
+版本标签会同时生成以下镜像标签：
+
+- `latest`
+- Git 标签，例如 `v0.6.1`
+- 语义版本，例如 `0.6.1`、`0.6`
+- 提交标签，例如 `sha-a1b2c3d`
+
+手动运行 Action 时可以填写额外标签，例如 `staging`，也可以选择是否更新 `latest`。
+
 启动后访问：
 
 ```text
 http://localhost:3000
 ```
+
+## 更新已部署服务
+
+仓库根目录的 `docker-compose.yml` 默认使用 `latest`。后续更新服务时执行：
+
+```bash
+docker compose pull app
+docker compose up -d app
+```
+
+如果需要锁定版本，修改 Compose 中的镜像标签，例如：
+
+```yaml
+image: ghcr.io/basketikun/infinite-canvas:0.6.1
+```
+
+GHCR 镜像需要在 GitHub Packages 中设置为公开，服务器才能免登录拉取；私有镜像需要先使用具备 `read:packages` 权限的 token 执行 `docker login ghcr.io`。
 
 ## 本地构建镜像
 
@@ -49,7 +77,7 @@ docker compose -f docker-compose.local.yml up -d --build
 
 ## 数据说明
 
-当前主应用镜像只启动 Next.js。画布、我的素材、生成记录和 AI API Key 默认保存在浏览器本地；第三方提示词由浏览器前端直连拉取，不需要额外挂载数据目录。
+当前主应用镜像只启动 Nginx 托管的 Vite 前端。画布、我的素材、生成记录和 AI API Key 默认保存在浏览器本地；第三方提示词由浏览器前端直连拉取，不需要额外挂载数据目录。
 
 ## 统计分析（可选）
 
