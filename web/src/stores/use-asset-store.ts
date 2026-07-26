@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
+import { recordSyncDeletions } from "@/services/sync-tombstones";
 
 export type AssetKind = "text" | "image" | "video";
 export type TextAsset = AssetBase<"text"> & { data: { content: string } };
@@ -80,6 +81,7 @@ export const useAssetStore = create<AssetStore>()(
                 })),
             removeAsset: (id) =>
                 set((state) => {
+                    recordSyncDeletions("assets", [id]);
                     const assets = state.assets.filter((asset) => asset.id !== id);
                     get().cleanupImages({ assets });
                     return { assets };

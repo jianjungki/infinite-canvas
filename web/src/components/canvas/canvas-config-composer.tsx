@@ -4,6 +4,7 @@ import { Button, Image } from "antd";
 import { FileText, Image as ImageIcon, Music2, Video, X } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
+import { imageReferenceDisplayLabel } from "@/lib/image-reference-prompt";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { NodeGenerationInput } from "./canvas-node-generation";
 
@@ -360,7 +361,7 @@ function parseComposerTokens(value: string): Token[] {
 function resourceLabel(input: NodeGenerationInput, inputs: NodeGenerationInput[]) {
     const sameTypeInputs = inputs.filter((item) => item.type === input.type);
     const index = Math.max(0, sameTypeInputs.findIndex((item) => item.nodeId === input.nodeId));
-    if (input.type === "image") return `图片${index + 1}`;
+    if (input.type === "image" && input.image) return imageReferenceDisplayLabel(input.image, index);
     if (input.type === "video") return `视频${index + 1}`;
     if (input.type === "audio") return `音频${index + 1}`;
     return `文本${index + 1}`;

@@ -1,5 +1,5 @@
 import type { AiTextMessage } from "@/services/api/image";
-import { imageReferenceLabel } from "@/lib/image-reference-prompt";
+import { buildImageReferencePromptText, imageReferenceDisplayLabel } from "@/lib/image-reference-prompt";
 import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
@@ -13,6 +13,7 @@ export type NodeGenerationContext = {
     referenceAudios: ReferenceAudio[];
     textCount: number;
     imageCount: number;
+    styleImageCount: number;
     videoCount: number;
     audioCount: number;
 };
@@ -48,7 +49,8 @@ export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData
         referenceVideos,
         referenceAudios,
         textCount: inputs.filter((input) => input.type === "text").length,
-        imageCount: referenceImages.length,
+        imageCount: referenceImages.filter((image) => image.role !== "style").length,
+        styleImageCount: referenceImages.filter((image) => image.role === "style").length,
         videoCount: referenceVideos.length,
         audioCount: referenceAudios.length,
     };
@@ -72,7 +74,7 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
         if (input) {
             let label = labelByNodeId.get(input.nodeId);
             if (!label) {
-                label = generationLabel(input.type, counts[input.type]++);
+                label = generationLabel(input, counts[input.type]++);
                 labelByNodeId.set(input.nodeId, label);
                 if (input.type === "text") textBlocks.push(`【${label}】\n${input.text || ""}`);
                 else selectedInputs.push(input);
@@ -96,6 +98,7 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
             referenceAudios: [],
             textCount: 0,
             imageCount: 0,
+            styleImageCount: 0,
             videoCount: 0,
             audioCount: 0,
         };
@@ -107,7 +110,8 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
         referenceVideos,
         referenceAudios,
         textCount: counts.text,
-        imageCount: referenceImages.length,
+        imageCount: referenceImages.filter((image) => image.role !== "style").length,
+        styleImageCount: referenceImages.filter((image) => image.role === "style").length,
         videoCount: referenceVideos.length,
         audioCount: referenceAudios.length,
     };
@@ -135,7 +139,7 @@ export function buildNodeResponseMessages(context: NodeGenerationContext): AiTex
     return [
         {
             role: "user",
-            content: [{ type: "text" as const, text: context.prompt }, ...context.referenceImages.map((image) => ({ type: "image_url" as const, image_url: { url: image.dataUrl } }))],
+            content: [{ type: "text" as const, text: buildImageReferencePromptText(context.prompt, context.referenceImages) }, ...context.referenceImages.map((image) => ({ type: "image_url" as const, image_url: { url: image.dataUrl } }))],
         },
     ];
 }
@@ -150,10 +154,10 @@ function readNodeTextInput(node: CanvasNodeData) {
     return node.metadata?.prompt || "";
 }
 
-function generationLabel(type: NodeGenerationInput["type"], index: number) {
-    if (type === "image") return imageReferenceLabel(index);
-    if (type === "video") return seedanceReferenceLabel("video", index);
-    if (type === "audio") return seedanceReferenceLabel("audio", index);
+function generationLabel(input: NodeGenerationInput, index: number) {
+    if (input.type === "image" && input.image) return imageReferenceDisplayLabel(input.image, index);
+    if (input.type === "video") return seedanceReferenceLabel("video", index);
+    if (input.type === "audio") return seedanceReferenceLabel("audio", index);
     return `文本${index + 1}`;
 }
 
@@ -165,6 +169,7 @@ function readReferenceImage(node: CanvasNodeData): ReferenceImage | null {
         type: node.metadata.mimeType || "image/png",
         dataUrl: node.metadata.content,
         storageKey: node.metadata.storageKey,
+        role: node.metadata.imageReferenceRole || "content",
     };
 }
 

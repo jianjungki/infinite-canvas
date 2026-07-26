@@ -14,7 +14,7 @@ import type { CanvasGenerationMode, CanvasNodeData, CanvasNodeMetadata } from "@
 type CanvasConfigNodePanelProps = {
     node: CanvasNodeData;
     isRunning: boolean;
-    inputSummary: { textCount: number; imageCount: number; videoCount: number; audioCount: number };
+    inputSummary: { textCount: number; imageCount: number; styleImageCount: number; videoCount: number; audioCount: number };
     onConfigChange: (nodeId: string, patch: Partial<CanvasNodeMetadata>) => void;
     onGenerate: (nodeId: string) => void;
     onStop: (nodeId: string) => void;
@@ -28,7 +28,7 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
     const mode = node.metadata?.generationMode || "image";
     const config = buildNodeConfig(globalConfig, node, mode);
     const chipStyle = { background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text };
-    const hasAnyInput = Boolean(inputSummary.textCount || inputSummary.imageCount || inputSummary.videoCount || inputSummary.audioCount);
+    const hasAnyInput = Boolean(inputSummary.textCount || inputSummary.imageCount || inputSummary.styleImageCount || inputSummary.videoCount || inputSummary.audioCount);
     const hasComposerContent = Boolean((node.metadata?.composerContent ?? node.metadata?.prompt ?? "").trim());
     const canGenerate = hasComposerContent || (mode === "audio" ? inputSummary.textCount > 0 : hasAnyInput);
 
@@ -86,7 +86,8 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
 
             <div className="mb-2 flex flex-wrap gap-1.5">
                 <InputChip label="提示词" value={`${inputSummary.textCount} 个`} style={chipStyle} />
-                <InputChip label="参考图" value={`${inputSummary.imageCount} 张`} style={chipStyle} />
+                <InputChip label="内容参考" value={`${inputSummary.imageCount} 张`} style={chipStyle} />
+                <InputChip label="风格参考" value={`${inputSummary.styleImageCount} 张`} style={chipStyle} />
                 <InputChip label="参考视频" value={`${inputSummary.videoCount} 个`} style={chipStyle} />
                 <InputChip label="参考音频" value={`${inputSummary.audioCount} 个`} style={chipStyle} />
                 <button type="button" className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border px-2 text-[11px]" style={chipStyle} onMouseDown={(event) => event.stopPropagation()} onClick={onComposerToggle}>

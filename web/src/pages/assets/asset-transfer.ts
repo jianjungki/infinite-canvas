@@ -1,6 +1,7 @@
 import { saveAs } from "file-saver";
 
 import { createZip, readZip } from "@/lib/zip";
+import { assertImportedFile, parseAssetExport } from "@/lib/import-validation";
 import { getMediaBlob, setMediaBlob } from "@/services/file-storage";
 import { getImageBlob, setImageBlob } from "@/services/image-storage";
 import type { Asset } from "@/stores/use-asset-store";
@@ -46,11 +47,11 @@ export async function readAssetPackage(file: File) {
     const zip = await readZip(file);
     const assetFile = zip.get("assets.json");
     if (!assetFile) throw new Error("missing assets.json");
-    const data = JSON.parse(await assetFile.text()) as AssetExportFile;
+    if (assetFile.size > 16 * 1024 * 1024) throw new Error("素材清单体积过大");
+    const data = parseAssetExport(JSON.parse(await assetFile.text()));
+    const importedFiles = data.files.map((item) => ({ item, blob: assertImportedFile(zip.get(item.path), item.bytes, item.path) }));
     await Promise.all(
-        data.files.map(async (item) => {
-            const blob = zip.get(item.path);
-            if (!blob) return;
+        importedFiles.map(async ({ item, blob }) => {
             const typedBlob = blob.type ? blob : blob.slice(0, blob.size, item.mimeType);
             await (item.storageKey.startsWith("image:") ? setImageBlob(item.storageKey, typedBlob) : setMediaBlob(item.storageKey, typedBlob));
         }),

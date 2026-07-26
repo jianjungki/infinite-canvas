@@ -1,3 +1,5 @@
+import type { ImageReferenceRole } from "@/types/image";
+
 export type Position = {
     x: number;
     y: number;
@@ -21,6 +23,8 @@ export enum CanvasNodeType {
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "error";
 export type CanvasGenerationMode = "text" | "image" | "video" | "audio";
 export type CanvasImageGenerationType = "generation" | "edit";
+export type CanvasStoredImageReference = { source: string; role: ImageReferenceRole };
+export type CanvasVideoTask = { id: string; provider: "openai" | "seedance"; model: string };
 
 export type CanvasNodeMetadata = {
     content?: string;
@@ -44,6 +48,9 @@ export type CanvasNodeMetadata = {
     audioSpeed?: string;
     audioInstructions?: string;
     references?: string[];
+    imageReferences?: CanvasStoredImageReference[];
+    imageReferenceRole?: ImageReferenceRole;
+    videoTask?: CanvasVideoTask;
     naturalWidth?: number;
     naturalHeight?: number;
     freeResize?: boolean;

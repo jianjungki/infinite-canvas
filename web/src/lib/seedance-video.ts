@@ -1,5 +1,6 @@
 import { modelOptionName, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
+import { imageReferenceRoleLabel } from "@/lib/image-reference-prompt";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
 export const SEEDANCE_REFERENCE_LIMITS = {
@@ -135,13 +136,14 @@ export function seedanceReferenceLabel(kind: "image" | "video" | "audio", index:
 
 export function buildSeedancePromptText(prompt: string, images: ReferenceImage[], videos: ReferenceVideo[], audios: ReferenceAudio[]) {
     const labels = [
-        ...images.map((_, index) => seedanceReferenceLabel("image", index)),
+        ...images.map((image, index) => `${seedanceReferenceLabel("image", index)}（${imageReferenceRoleLabel(image.role)}）`),
         ...videos.map((_, index) => seedanceReferenceLabel("video", index)),
         ...audios.map((_, index) => seedanceReferenceLabel("audio", index)),
     ];
     const text = prompt.trim();
     if (!labels.length) return text;
-    return `参考素材编号：${labels.join("、")}。请按这些编号理解提示词中的图片、视频和音频引用。\n\n${text}`;
+    const roleGuide = images.some((image) => image.role === "style") ? "内容参考用于主体、结构、姿态和构图；风格参考只用于色彩、材质、光影和整体视觉语言，不要照搬其中的主体。\n" : "";
+    return `参考素材编号：${labels.join("、")}。请按这些编号和角色理解提示词中的图片、视频和音频引用。\n${roleGuide}\n${text}`;
 }
 
 export function seedanceVideoReferenceError(videos: ReferenceVideo[]) {

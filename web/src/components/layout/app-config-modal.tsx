@@ -225,7 +225,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const updateAgentConfig = (patch: { url?: string; token?: string }) => {
         setAgentState({ ...patch, connectError: "" });
         if (patch.url !== undefined) localStorage.setItem("canvas-agent-url", patch.url.trim().replace(/\/$/, ""));
-        if (patch.token !== undefined) localStorage.setItem("canvas-agent-token", patch.token);
+        if (patch.token !== undefined) sessionStorage.setItem("canvas-agent-token", patch.token);
     };
 
     const toggleAgentConnection = () => (agentEnabled ? disconnectAgent({ connectError: "" }) : connectAgent());

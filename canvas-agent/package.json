@@ -15,6 +15,7 @@
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "test": "tsx tests/schemas.test.ts",
     "prepack": "npm run build"
   },
   "dependencies": {

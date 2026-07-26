@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { App, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Pencil, Plus, RefreshCw, Settings2, Trash2, Upload, Video } from "lucide-react";
+import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, MessageSquare, Minus, Music2, Palette, Pencil, Plus, RefreshCw, Settings2, Trash2, Upload, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
@@ -34,6 +34,7 @@ type CanvasNodeHoverToolbarProps = {
     onReversePrompt: (node: CanvasNodeData) => void;
     onRetry: (node: CanvasNodeData) => void;
     onToggleFreeResize: (node: CanvasNodeData) => void;
+    onToggleReferenceRole: (node: CanvasNodeData) => void;
     onDelete: (node: CanvasNodeData) => void;
 };
 
@@ -71,6 +72,7 @@ export function CanvasNodeHoverToolbar({
     onReversePrompt,
     onRetry,
     onToggleFreeResize,
+    onToggleReferenceRole,
     onDelete,
 }: CanvasNodeHoverToolbarProps) {
     const [quickImageToolIds, setQuickImageToolIds] = useState<ImageQuickToolId[]>(defaultImageQuickToolIds);
@@ -146,6 +148,18 @@ export function CanvasNodeHoverToolbar({
         ...(isText ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
         ...(isText ? [{ id: "increaseFont", title: "增大字号", label: "放大", icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),
         ...(isImage && !hasImage ? [{ id: "uploadImage", title: "上传图片", label: "上传图片", icon: <Upload className="size-4" />, onClick: () => onUpload(node) }] : []),
+        ...(hasImage
+            ? [
+                  {
+                      id: "referenceRole",
+                      title: node.metadata?.imageReferenceRole === "style" ? "切换为内容参考" : "切换为风格参考",
+                      label: node.metadata?.imageReferenceRole === "style" ? "风格参考" : "内容参考",
+                      icon: <Palette className="size-4" />,
+                      active: node.metadata?.imageReferenceRole === "style",
+                      onClick: () => onToggleReferenceRole(node),
+                  },
+              ]
+            : []),
         ...(isVideo ? [{ id: "uploadVideo", title: hasVideo ? "替换视频" : "上传视频", label: hasVideo ? "替换视频" : "上传视频", icon: <Video className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(isAudio ? [{ id: "uploadAudio", title: hasAudio ? "替换音频" : "上传音频", label: hasAudio ? "替换音频" : "上传音频", icon: <Music2 className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(hasImage ? imageTools.map((tool) => ({ id: tool.id, title: tool.title, label: tool.label, icon: tool.icon, active: tool.active, onClick: tool.onClick })) : []),
@@ -260,6 +274,7 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                             <InfoRow label="状态" value={node.metadata?.status || "idle"} />
                             {batchCount > 1 ? <InfoRow label="图片组" value={`${batchCount} 张`} /> : null}
                             {node.metadata?.prompt ? <InfoRow label="提示词" value={node.metadata.prompt} /> : null}
+                            {node.type === CanvasNodeType.Image && node.metadata?.content ? <InfoRow label="引用用途" value={node.metadata.imageReferenceRole === "style" ? "风格参考" : "内容参考"} /> : null}
                             {imageBytes ? <InfoRow label="图片大小" value={formatBytes(imageBytes)} /> : null}
                             {node.metadata?.errorDetails ? (
                                 <div className="rounded-lg border p-3 text-red-400" style={{ borderColor: theme.node.stroke }}>

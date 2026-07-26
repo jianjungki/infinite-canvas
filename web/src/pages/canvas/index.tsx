@@ -4,11 +4,11 @@ import { App, Button } from "antd";
 import { Download, FileUp, Plus } from "lucide-react";
 
 import { readZip } from "@/lib/zip";
+import { assertImportedFile, parseCanvasExport } from "@/lib/import-validation";
 import { setMediaBlob } from "@/services/file-storage";
 import { setImageBlob } from "@/services/image-storage";
 import { CanvasDeleteProjectsDialog } from "@/components/canvas/canvas-delete-projects-dialog";
 import { CanvasProjectCard } from "@/components/canvas/canvas-project-card";
-import type { CanvasExportFile } from "@/types/canvas-export";
 import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { useCanvasUiStore } from "@/stores/canvas/use-canvas-ui-store";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
@@ -39,21 +39,19 @@ export default function CanvasPage() {
             const zip = await readZip(file);
             const projectFile = zip.get("projects.json");
             if (!projectFile) throw new Error("missing projects.json");
-            const data = JSON.parse(await projectFile.text()) as CanvasExportFile;
+            if (projectFile.size > 16 * 1024 * 1024) throw new Error("画布清单体积过大");
+            const data = parseCanvasExport(JSON.parse(await projectFile.text()));
+            const importedFiles = data.projects.flatMap((project) => project.files).map((item) => ({ item, blob: assertImportedFile(zip.get(item.path), item.bytes, item.path) }));
             await Promise.all(
-                data.projects.flatMap((project) =>
-                    project.files.map(async (item) => {
-                        const blob = zip.get(item.path);
-                        if (!blob) return;
-                        const typedBlob = blob.type ? blob : blob.slice(0, blob.size, item.mimeType);
-                        await (item.storageKey.startsWith("image:") ? setImageBlob(item.storageKey, typedBlob) : setMediaBlob(item.storageKey, typedBlob));
-                    }),
-                ),
+                importedFiles.map(async ({ item, blob }) => {
+                    const typedBlob = blob.type ? blob : blob.slice(0, blob.size, item.mimeType);
+                    await (item.storageKey.startsWith("image:") ? setImageBlob(item.storageKey, typedBlob) : setMediaBlob(item.storageKey, typedBlob));
+                }),
             );
             data.projects.forEach((item) => importProject(item.project));
             message.success(`已导入 ${data.projects.length} 个画布`);
-        } catch {
-            message.error("导入失败，请选择有效的画布压缩包");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "导入失败，请选择有效的画布压缩包");
         } finally {
             if (inputRef.current) inputRef.current.value = "";
         }

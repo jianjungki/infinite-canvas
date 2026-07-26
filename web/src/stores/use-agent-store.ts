@@ -15,6 +15,12 @@ const CONNECT_TIMEOUT_MS = 6000;
 let agentSource: EventSource | null = null;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
+function readAgentToken() {
+    if (typeof window === "undefined") return "";
+    localStorage.removeItem("canvas-agent-token");
+    return sessionStorage.getItem("canvas-agent-token") || "";
+}
+
 type AgentStore = {
     width: number;
     panelOpen: boolean;
@@ -61,7 +67,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     panelClosing: false,
     canvasContext: null,
     url: typeof window === "undefined" ? "http://127.0.0.1:17371" : localStorage.getItem("canvas-agent-url") || "http://127.0.0.1:17371",
-    token: typeof window === "undefined" ? "" : localStorage.getItem("canvas-agent-token") || "",
+    token: readAgentToken(),
     connected: false,
     enabled: false,
     prompt: "",
@@ -101,7 +107,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             return set({ connectError: "Local URL 格式不正确" });
         }
         localStorage.setItem("canvas-agent-url", endpoint);
-        localStorage.setItem("canvas-agent-token", token);
+        sessionStorage.setItem("canvas-agent-token", token);
         // 只设 enabled=true，由 CanvasLocalAgentPanel 的 useEffect 统一负责开 SSE
         set({ url: endpoint, token, enabled: true, activity: "连接中", connectError: "" });
     },

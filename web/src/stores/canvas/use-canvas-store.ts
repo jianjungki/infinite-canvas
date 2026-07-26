@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { localForageStorage } from "@/lib/localforage-storage";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
 import type { CanvasAssistantSession, CanvasConnection, CanvasNodeData, ViewportTransform } from "@/types/canvas";
+import { recordSyncDeletions } from "@/services/sync-tombstones";
 
 export type CanvasProject = {
     id: string;
@@ -37,6 +38,8 @@ const CANVAS_STORE_KEY = "infinite-canvas:canvas_store";
 type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
+let queuedPersistWrite: { name: string; value: StorageValue<CanvasStore> } | null = null;
+let persistWriteQueue = Promise.resolve();
 
 const canvasStorage: PersistStorage<CanvasStore> = {
     getItem: async (name) => {
@@ -50,10 +53,10 @@ const canvasStorage: PersistStorage<CanvasStore> = {
         const nextState = value.state as PersistedCanvasState;
         if (queuedPersistState && queuedPersistState.projects === nextState.projects) return;
         queuedPersistState = nextState;
+        queuedPersistWrite = { name, value };
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
-            saveTimer = null;
-            void localForageStorage.setItem(name, JSON.stringify(value));
+            void flushCanvasStorePersistence();
         }, 400);
     },
     removeItem: (name) => localForageStorage.removeItem(name),
@@ -110,6 +113,7 @@ export const useCanvasStore = create<CanvasStore>()(
                 })),
             deleteProjects: (ids) =>
                 set((state) => {
+                    recordSyncDeletions("canvas", ids);
                     const projects = state.projects.filter((project) => !ids.includes(project.id));
                     return { projects };
                 }),
@@ -132,3 +136,17 @@ export const useCanvasStore = create<CanvasStore>()(
         },
     ),
 );
+
+export async function flushCanvasStorePersistence() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = null;
+    const queued = queuedPersistWrite;
+    queuedPersistWrite = null;
+    if (!queued) return persistWriteQueue;
+    persistWriteQueue = persistWriteQueue
+        .then(() => localForageStorage.setItem(queued.name, JSON.stringify(queued.value)))
+        .catch((error) => console.error("画布本地保存失败", error));
+    return persistWriteQueue;
+}
+
+if (typeof window !== "undefined") window.addEventListener("pagehide", () => void flushCanvasStorePersistence());

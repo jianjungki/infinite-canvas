@@ -1,4 +1,4 @@
-import { imageReferenceLabel } from "@/lib/image-reference-prompt";
+import { imageReferenceDisplayLabel } from "@/lib/image-reference-prompt";
 import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "@/types/canvas";
 
@@ -62,7 +62,7 @@ function labelResourceNodes(nodes: CanvasNodeData[], active: boolean) {
         const kind = resourceKind(node);
         if (!kind) return [];
         const index = counts[kind]++;
-        const label = labelForKind(kind, index);
+        const label = labelForKind(node, kind, index);
         return [
             {
                 id: node.id,
@@ -78,8 +78,8 @@ function labelResourceNodes(nodes: CanvasNodeData[], active: boolean) {
     });
 }
 
-function labelForKind(kind: CanvasResourceKind, index: number) {
-    if (kind === "image") return imageReferenceLabel(index);
+function labelForKind(node: CanvasNodeData, kind: CanvasResourceKind, index: number) {
+    if (kind === "image") return imageReferenceDisplayLabel({ id: node.id, name: node.title, type: node.metadata?.mimeType || "image/png", dataUrl: node.metadata?.content || "", role: node.metadata?.imageReferenceRole || "content" }, index);
     if (kind === "video") return seedanceReferenceLabel("video", index);
     if (kind === "audio") return seedanceReferenceLabel("audio", index);
     return `文本${index + 1}`;
