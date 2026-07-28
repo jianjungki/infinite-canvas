@@ -3,7 +3,8 @@ FROM oven/bun:1.3.13 AS web-build
 
 WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile --ignore-scripts --cache-dir=/root/.bun/install/cache
+# Rollup 的原生可选依赖随目标平台变化，容器内安装时需允许 Bun 补齐对应包。
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --ignore-scripts --cache-dir=/root/.bun/install/cache
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
 COPY web ./
