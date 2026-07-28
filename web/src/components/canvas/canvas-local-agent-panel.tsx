@@ -255,7 +255,8 @@ export function CanvasLocalAgentPanel({ embedded, headless, autoConnect }: { emb
             if (!wasConnected) {
                 source.close();
                 setAgentState({ enabled: false });
-            });
+            }
+        };
         return () => {
             disposed = true;
             source?.close();
