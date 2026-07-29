@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, BookOpen, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Tag, Tooltip, Typography } from "antd";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { App, Button, Checkbox, Drawer, Empty, Image, Modal, Tag, Tooltip, Typography } from "antd";
 import localforage from "localforage";
 import { saveAs } from "file-saver";
 
@@ -8,6 +8,7 @@ import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/components/canvas/asset-picker-modal";
+import { CanvasResourceMentionTextarea } from "@/components/canvas/canvas-resource-mention-textarea";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { modelOptionLabel, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -102,6 +103,10 @@ export default function ImagePage() {
     const model = effectiveConfig.imageModel || effectiveConfig.model;
     const canGenerate = Boolean(prompt.trim());
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
+    const referenceMentions = useMemo(
+        () => references.map((item, index) => ({ id: item.id, nodeId: item.id, kind: "image" as const, label: imageReferenceLabel(index), title: item.name, previewUrl: item.dataUrl, active: true })),
+        [references],
+    );
 
     useEffect(() => {
         if (!running || !startedAt) return;
@@ -415,7 +420,17 @@ export default function ImagePage() {
                                         </Button>
                                     </div>
                                 </div>
-                                <Input.TextArea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={7} placeholder="描述画面主体、风格、构图、光线和用途" />
+                                <div className="h-[172px]">
+                                    <CanvasResourceMentionTextarea
+                                        value={prompt}
+                                        references={referenceMentions}
+                                        onChange={setPrompt}
+                                        rows={7}
+                                        placeholder="描述画面主体、风格、构图、光线和用途"
+                                        aria-label="提示词"
+                                        className="block size-full resize-none rounded-md border border-stone-300 bg-transparent px-3 py-2 text-sm leading-5 outline-none transition focus:border-blue-500 dark:border-stone-700"
+                                    />
+                                </div>
                             </div>
 
                             <div className="min-w-0">

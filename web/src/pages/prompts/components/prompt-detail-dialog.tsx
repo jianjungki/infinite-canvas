@@ -2,15 +2,19 @@ import { Copy, FileText, FolderPlus } from "lucide-react";
 import { Button, Modal, Space, Tag } from "antd";
 
 import { formatPromptDate, type Prompt } from "@/services/api/prompts";
+import { usePromptImageUrl, usePromptImageUrls } from "@/hooks/use-prompt-image-urls";
 
 export function PromptDetailDialog({ prompt, onClose, onCopy, onSaveAsset }: { prompt: Prompt | null; onClose: () => void; onCopy: (prompt: string) => void; onSaveAsset?: (prompt: Prompt) => void }) {
+    const coverUrl = usePromptImageUrl(prompt?.coverUrl || "", prompt?.coverStorageKey);
+    const referenceImageUrls = usePromptImageUrls(prompt?.referenceImageUrls || [], prompt?.referenceImageStorageKeys);
+    const extraReferenceImageUrls = referenceImageUrls.filter((_, index) => prompt?.referenceImageUrls[index] !== prompt?.coverUrl);
     return (
         <Modal title={prompt?.title} open={Boolean(prompt)} onCancel={onClose} footer={null} width={720} centered styles={{ body: { height: "calc(85vh - 55px)", overflow: "hidden" } }}>
             {prompt ? (
                 <div className="flex h-full min-h-0 flex-col">
                     <div className="shrink-0 space-y-3 pb-4">
-                        {prompt.coverUrl ? <img src={prompt.coverUrl} alt={prompt.title} className="h-48 w-full rounded-lg object-cover sm:h-56" /> : <div className="grid h-48 w-full place-items-center rounded-lg bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-600 sm:h-56"><FileText className="size-9" /></div>}
-                        {prompt.referenceImageUrls.length > 1 ? <div className="grid grid-cols-6 gap-2">{prompt.referenceImageUrls.filter((url) => url !== prompt.coverUrl).slice(0, 6).map((url) => <img key={url} src={url} alt="" className="aspect-square w-full rounded-md object-cover" loading="lazy" />)}</div> : null}
+                        {coverUrl ? <img src={coverUrl} alt={prompt.title} className="h-48 w-full rounded-lg object-cover sm:h-56" /> : <div className="grid h-48 w-full place-items-center rounded-lg bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-600 sm:h-56"><FileText className="size-9" /></div>}
+                        {referenceImageUrls.length > 1 ? <div className="grid grid-cols-6 gap-2">{extraReferenceImageUrls.slice(0, 6).map((url) => <img key={url} src={url} alt="" className="aspect-square w-full rounded-md object-cover" loading="lazy" />)}</div> : null}
                     </div>
                     <div className="min-h-0 min-w-0 flex-1 overflow-y-auto border-y border-stone-200 py-4 pr-2 dark:border-stone-800">
                         <div className="flex flex-wrap gap-1.5">

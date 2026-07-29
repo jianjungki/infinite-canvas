@@ -3,6 +3,7 @@ import localforage from "localforage";
 import { runPromptSource, type RawPrompt } from "./prompt-source-runtime";
 import { usePromptSourceStore } from "@/stores/use-prompt-source-store";
 import type { PromptSource } from "./prompt-source-presets";
+import { getR2Object, importR2Image, isR2StorageEnabled, promptImageObjectKey, promptSourceObjectKey, putR2Object } from "@/services/r2-storage";
 
 export type Prompt = RawPrompt & {
     sourceId: string;
@@ -75,7 +76,66 @@ function withSourceMeta(source: PromptSource, items: RawPrompt[]): Prompt[] {
 }
 
 async function readSourceCache(sourceId: string) {
-    return promptCacheStore.getItem<SourceCache>(cacheKey(sourceId));
+    const local = await promptCacheStore.getItem<SourceCache>(cacheKey(sourceId));
+    if (local || !isR2StorageEnabled()) return local;
+    try {
+        const cache = JSON.parse(await (await getR2Object(promptSourceObjectKey(sourceId))).text()) as SourceCache;
+        if (cache.sourceId !== sourceId || !Array.isArray(cache.items)) return null;
+        await promptCacheStore.setItem(cacheKey(sourceId), cache);
+        return cache;
+    } catch {
+        return null;
+    }
+}
+
+async function saveSourceCache(cache: SourceCache) {
+    await promptCacheStore.setItem(cacheKey(cache.sourceId), cache);
+    if (!isR2StorageEnabled()) return;
+    try {
+        await putR2Object(promptSourceObjectKey(cache.sourceId), JSON.stringify(cache), "application/json");
+    } catch {
+        // The local cache remains usable when the optional remote mirror is unavailable.
+    }
+}
+
+function syncSourceImages(source: PromptSource, cache: SourceCache) {
+    if (!isR2StorageEnabled()) return;
+    void cachePromptImages(source, cache.items)
+        .then((items) => saveSourceCache({ ...cache, items }))
+        .catch(() => undefined);
+}
+
+async function cachePromptImages(source: PromptSource, items: Prompt[]) {
+    return mapWithConcurrency(items, 4, async (item) => {
+        const coverStorageKey = await cachePromptImage(source, item.id, "cover", item.coverUrl);
+        const referenceImageStorageKeys = await mapWithConcurrency(item.referenceImageUrls, 2, (url, index) => cachePromptImage(source, item.id, `reference-${index}`, url));
+        return { ...item, coverStorageKey: coverStorageKey || undefined, referenceImageStorageKeys };
+    });
+}
+
+async function cachePromptImage(source: PromptSource, promptId: string, name: string, url: string) {
+    if (!url) return "";
+    const storageKey = promptImageObjectKey(source.id, promptId, name);
+    try {
+        await importR2Image(storageKey, url);
+        return storageKey;
+    } catch {
+        return "";
+    }
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, map: (item: T, index: number) => Promise<R>) {
+    const result = new Array<R>(items.length);
+    let next = 0;
+    await Promise.all(
+        Array.from({ length: Math.min(limit, items.length) }, async () => {
+            while (next < items.length) {
+                const index = next++;
+                result[index] = await map(items[index], index);
+            }
+        }),
+    );
+    return result;
 }
 
 async function refreshSourceRecord(source: PromptSource): Promise<PromptSourceRefreshResult> {
@@ -84,7 +144,8 @@ async function refreshSourceRecord(source: PromptSource): Promise<PromptSourceRe
         const items = withSourceMeta(source, await runPromptSource(source));
         const lastSuccessAt = new Date().toISOString();
         const cache: SourceCache = { sourceId: source.id, items, count: items.length, fetchedAt: Date.now(), lastSuccessAt, lastError: "", signature: sourceSignature(source) };
-        await promptCacheStore.setItem(cacheKey(source.id), cache);
+        await saveSourceCache(cache);
+        syncSourceImages(source, cache);
         return { sourceId: source.id, sourceName: source.name, count: items.length, lastSuccessAt, lastError: "", success: true };
     } catch (error) {
         const lastError = error instanceof Error ? error.message : String(error);
@@ -97,7 +158,7 @@ async function refreshSourceRecord(source: PromptSource): Promise<PromptSourceRe
             lastError,
             signature: previous?.signature || sourceSignature(source),
         };
-        await promptCacheStore.setItem(cacheKey(source.id), cache);
+        await saveSourceCache(cache);
         return { sourceId: source.id, sourceName: source.name, count: cache.count, lastSuccessAt: cache.lastSuccessAt, lastError, success: false };
     }
 }

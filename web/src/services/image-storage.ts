@@ -2,6 +2,7 @@ import localforage from "localforage";
 
 import { nanoid } from "nanoid";
 import { readImageMeta } from "@/lib/image-utils";
+import { createR2ImageStorageKey, deleteR2Object, getR2Object, isR2ImageStorageKey, isR2StorageEnabled, putR2Object, r2ImageObjectKey } from "@/services/r2-storage";
 
 export type UploadedImage = {
     url: string;
@@ -17,19 +18,26 @@ const objectUrls = new Map<string, string>();
 
 export async function uploadImage(input: string | Blob): Promise<UploadedImage> {
     const blob = typeof input === "string" ? await (await fetch(input)).blob() : input;
-    const storageKey = `image:${nanoid()}`;
-    await store.setItem(storageKey, blob);
+    const storageKey = isR2StorageEnabled() ? createR2ImageStorageKey(nanoid()) : `image:${nanoid()}`;
     const url = URL.createObjectURL(blob);
-    objectUrls.set(storageKey, url);
     const meta = await readImageMeta(url);
-    return { url, storageKey, width: meta.width, height: meta.height, bytes: blob.size, mimeType: blob.type || meta.mimeType };
+    const mimeType = blob.type || meta.mimeType || "application/octet-stream";
+    try {
+        if (isR2ImageStorageKey(storageKey)) await putR2Object(r2ImageObjectKey(storageKey), blob, mimeType);
+        else await store.setItem(storageKey, blob);
+    } catch (error) {
+        URL.revokeObjectURL(url);
+        throw error;
+    }
+    objectUrls.set(storageKey, url);
+    return { url, storageKey, width: meta.width, height: meta.height, bytes: blob.size, mimeType };
 }
 
 export async function resolveImageUrl(storageKey?: string, fallback = "") {
     if (!storageKey) return fallback;
     const cached = objectUrls.get(storageKey);
     if (cached) return cached;
-    const blob = await store.getItem<Blob>(storageKey);
+    const blob = isR2ImageStorageKey(storageKey) ? await getR2Object(r2ImageObjectKey(storageKey)) : await store.getItem<Blob>(storageKey);
     if (!blob) return fallback;
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
@@ -37,11 +45,12 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
 }
 
 export async function getImageBlob(storageKey: string) {
-    return store.getItem<Blob>(storageKey);
+    return isR2ImageStorageKey(storageKey) ? getR2Object(r2ImageObjectKey(storageKey)) : store.getItem<Blob>(storageKey);
 }
 
 export async function setImageBlob(storageKey: string, blob: Blob) {
-    await store.setItem(storageKey, blob);
+    if (isR2ImageStorageKey(storageKey)) await putR2Object(r2ImageObjectKey(storageKey), blob, blob.type || "application/octet-stream");
+    else await store.setItem(storageKey, blob);
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     return url;
@@ -59,7 +68,8 @@ export async function deleteStoredImages(keys: Iterable<string>) {
             const url = objectUrls.get(key);
             if (url) URL.revokeObjectURL(url);
             objectUrls.delete(key);
-            await store.removeItem(key);
+            if (isR2ImageStorageKey(key)) await deleteR2Object(r2ImageObjectKey(key));
+            else await store.removeItem(key);
         }),
     );
 }

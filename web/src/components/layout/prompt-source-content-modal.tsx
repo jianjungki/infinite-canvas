@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PromptDetailDialog } from "@/pages/prompts/components/prompt-detail-dialog";
 import { useCopyText } from "@/hooks/use-copy-text";
+import { usePromptImageUrl } from "@/hooks/use-prompt-image-urls";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { fetchSourcePrompts, refreshSource, type Prompt } from "@/services/api/prompts";
 import type { PromptSource } from "@/services/api/prompt-source-presets";
@@ -73,7 +74,7 @@ export function PromptSourceContentModal({ source, onClose }: { source: PromptSo
                             title: "封面",
                             dataIndex: "coverUrl",
                             width: 72,
-                            render: (coverUrl: string) => (coverUrl ? <img src={coverUrl} alt="" className="size-12 rounded object-cover" /> : <div className="size-12 rounded bg-stone-100 dark:bg-stone-800" />),
+                            render: (_, item) => <PromptSourceCover item={item} />,
                         },
                         {
                             title: "标题",
@@ -122,6 +123,11 @@ export function PromptSourceContentModal({ source, onClose }: { source: PromptSo
             <PromptDetailDialog prompt={detail} onClose={() => setDetail(null)} onCopy={(prompt) => copyText(prompt, "提示词已复制")} onSaveAsset={saveAsset} />
         </>
     );
+}
+
+function PromptSourceCover({ item }: { item: Prompt }) {
+    const coverUrl = usePromptImageUrl(item.coverUrl, item.coverStorageKey);
+    return coverUrl ? <img src={coverUrl} alt="" className="size-12 rounded object-cover" /> : <div className="size-12 rounded bg-stone-100 dark:bg-stone-800" />;
 }
 
 async function refreshSourceItems(sourceId: string) {

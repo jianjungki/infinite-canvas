@@ -1,4 +1,4 @@
-import { App, Button, Form, Input, Modal, Progress, Select, Tabs } from "antd";
+import { App, Button, Form, Input, Modal, Progress, Select, Switch, Tabs } from "antd";
 import { Cloud, Download, Pencil, Plus, RefreshCw, Trash2, Upload, Wifi } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -7,6 +7,7 @@ import { ChannelEditorDrawer } from "@/components/layout/channel-editor-drawer";
 import { ConfigPromptSources } from "@/components/layout/config-prompt-sources";
 import { exportAppConfig, importAppConfig } from "@/services/config-file";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
+import { testR2Connection } from "@/services/r2-storage";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
 import { createModelChannel, modelOptionsFromChannels, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore, type AiConfig, type ApiCallFormat, type ConfigTabKey, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
@@ -56,17 +57,21 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     const [activeTab, setActiveTab] = useState<ConfigTabKey>(initialTab);
     const [editingChannelId, setEditingChannelId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
+    const [testingR2, setTestingR2] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
     const [webdavSyncStatus, setWebdavSyncStatus] = useState("");
     const [webdavDomainProgress, setWebdavDomainProgress] = useState(createWebdavDomainProgress);
     const config = useConfigStore((state) => state.config);
     const webdav = useConfigStore((state) => state.webdav);
+    const r2 = useConfigStore((state) => state.r2);
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const updateWebdavConfig = useConfigStore((state) => state.updateWebdavConfig);
+    const updateR2Config = useConfigStore((state) => state.updateR2Config);
     const shouldPromptContinue = useConfigStore((state) => state.shouldPromptContinue);
     const setConfigDialogOpen = useConfigStore((state) => state.setConfigDialogOpen);
     const clearPromptContinue = useConfigStore((state) => state.clearPromptContinue);
     const webdavReady = Boolean(webdav.url.trim());
+    const r2Ready = Boolean(r2.workerUrl.trim() && r2.accessToken.trim());
     const editingChannel = config.channels.find((channel) => channel.id === editingChannelId) || null;
     useEffect(() => setActiveTab(initialTab), [initialTab]);
 
@@ -129,6 +134,22 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
         }
     };
 
+    const testR2 = async () => {
+        if (!r2Ready) {
+            message.error("请先填写 R2 Worker 地址和访问令牌");
+            return;
+        }
+        setTestingR2(true);
+        try {
+            await testR2Connection(r2);
+            message.success("Cloudflare R2 连接可用");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "Cloudflare R2 连接测试失败");
+        } finally {
+            setTestingR2(false);
+        }
+    };
+
     const updateWebdavProgress = (event: AppSyncProgressEvent) => {
         setWebdavSyncStatus(event.stage);
         if (!event.domain) return;
@@ -167,7 +188,7 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
     return (
         <>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-3 dark:border-stone-800">
-                <div className="text-xs text-stone-500">JSON 文件包含 API Key 和 WebDAV 凭据，请妥善保管。</div>
+                <div className="text-xs text-stone-500">JSON 文件包含 API Key、Cloudflare R2 和 WebDAV 凭据，请妥善保管。</div>
                 <div className="flex gap-2">
                     <Button icon={<Upload className="size-4" />} onClick={() => configInputRef.current?.click()}>
                         导入配置
@@ -270,6 +291,40 @@ export function AppConfigPanel({ showDoneButton = false, initialTab = "channels"
                         key: "prompt-sources",
                         label: "提示词来源",
                         children: <ConfigPromptSources />,
+                    },
+                    {
+                        key: "r2",
+                        label: "Cloudflare R2",
+                        children: (
+                            <Form layout="vertical" requiredMark={false}>
+                                <section className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                                        <div>
+                                            <div className="flex items-center gap-2 text-sm font-semibold">
+                                                <Cloud className="size-4" />
+                                                Cloudflare R2 同步
+                                            </div>
+                                            <div className="mt-1 text-xs text-stone-500">启用后，新生成和上传的图片会保存到 R2；提示词来源每次成功拉取后会同步为私有缓存，并下载封面和参考图。本地缓存仍用于离线回退。</div>
+                                        </div>
+                                        <Switch checked={r2.enabled} onChange={(enabled) => updateR2Config("enabled", enabled)} checkedChildren="已启用" unCheckedChildren="未启用" />
+                                    </div>
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <Form.Item label="R2 Worker 地址" extra="部署 cloudflare/r2-worker 后填写 Worker 的 HTTPS 地址。" className="mb-0">
+                                            <Input value={r2.workerUrl} placeholder="https://infinite-canvas-r2.example.workers.dev" onChange={(event) => updateR2Config("workerUrl", event.target.value)} />
+                                        </Form.Item>
+                                        <Form.Item label="R2 访问令牌" extra="由 Worker 校验，不要填写 R2 S3 Access Key 或 Secret。" className="mb-0">
+                                            <Input.Password value={r2.accessToken} autoComplete="off" onChange={(event) => updateR2Config("accessToken", event.target.value)} />
+                                        </Form.Item>
+                                    </div>
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                        <Button icon={<Wifi className="size-4" />} disabled={!r2Ready} loading={testingR2} onClick={() => void testR2()}>
+                                            测试连接
+                                        </Button>
+                                        {!r2Ready ? <span className="text-xs text-stone-500">填写并测试连接后再启用同步。</span> : null}
+                                    </div>
+                                </section>
+                            </Form>
+                        ),
                     },
                     {
                         key: "webdav",

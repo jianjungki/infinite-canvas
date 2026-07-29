@@ -6,7 +6,9 @@ export type RawPrompt = {
     prompt: string;
     description: string;
     coverUrl: string;
+    coverStorageKey?: string;
     referenceImageUrls: string[];
+    referenceImageStorageKeys?: string[];
     tags: string[];
     preview: string;
     createdAt: string;

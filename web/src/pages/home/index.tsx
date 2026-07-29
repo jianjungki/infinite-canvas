@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
 import { navigationTools } from "@/constant/navigation-tools";
 import { cn } from "@/lib/utils";
+import { usePromptImageUrls } from "@/hooks/use-prompt-image-urls";
 
 function Highlighter({ action, color, children }: { action: "highlight" | "underline"; color: string; children: ReactNode }) {
     return (
@@ -27,6 +28,7 @@ export default function IndexPage() {
     const [promptShowcase, setPromptShowcase] = useState<Prompt[]>([]);
     const [previewIndex, setPreviewIndex] = useState(0);
     const [previewOpen, setPreviewOpen] = useState(false);
+    const promptShowcaseUrls = usePromptImageUrls(promptShowcase.map((item) => item.coverUrl), promptShowcase.map((item) => item.coverStorageKey || ""));
 
     useEffect(() => {
         void fetchPrompts({ pageSize: 12 })
@@ -89,7 +91,7 @@ export default function IndexPage() {
                                     index === 3 && "md:col-span-2",
                                 )}
                             >
-                                <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+                                <img src={promptShowcaseUrls[index] || item.coverUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
                                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/35 to-transparent p-4 text-white">
                                     <div className="mb-2 flex flex-wrap gap-1.5">
                                         {item.tags.slice(0, 2).map((tag) => (
@@ -115,8 +117,8 @@ export default function IndexPage() {
                 }}
             >
                 <div className="hidden">
-                    {promptShowcase.map((item) => (
-                        <Image key={item.id} src={item.coverUrl} alt={item.title} />
+                    {promptShowcase.map((item, index) => (
+                        <Image key={item.id} src={promptShowcaseUrls[index] || item.coverUrl} alt={item.title} />
                     ))}
                 </div>
             </Image.PreviewGroup>

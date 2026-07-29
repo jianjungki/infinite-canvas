@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Button, Card, Tag } from "antd";
 
 import { formatPromptDate, type Prompt } from "@/services/api/prompts";
+import { usePromptImageUrl } from "@/hooks/use-prompt-image-urls";
 
 export function PromptCard({
     item,
@@ -21,6 +22,7 @@ export function PromptCard({
     actionType?: "text" | "primary";
     extraAction?: ReactNode;
 }) {
+    const coverUrl = usePromptImageUrl(item.coverUrl, item.coverStorageKey);
     return (
         <Card
             hoverable
@@ -28,7 +30,7 @@ export function PromptCard({
             styles={{ body: { padding: 0 } }}
             cover={
                 <button type="button" className="block w-full text-left" onClick={onOpen}>
-                    {item.coverUrl ? <img src={item.coverUrl} alt={item.title} className="aspect-[4/3] w-full object-cover" loading="lazy" /> : <span className="grid aspect-[4/3] w-full place-items-center bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-600"><FileText className="size-8" /></span>}
+                    {coverUrl ? <img src={coverUrl} alt={item.title} className="aspect-[4/3] w-full object-cover" loading="lazy" /> : <span className="grid aspect-[4/3] w-full place-items-center bg-stone-100 text-stone-400 dark:bg-stone-900 dark:text-stone-600"><FileText className="size-8" /></span>}
                 </button>
             }
         >

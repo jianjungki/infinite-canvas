@@ -36,7 +36,7 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
         if (!query) return activeReferences;
         return activeReferences.filter((item) => `${item.label} ${item.title} ${item.kind} ${item.text || ""}`.toLowerCase().includes(query));
     }, [mention, references]);
-    const activeLabels = useMemo(() => (highlightLabels ? Array.from(new Set(references.filter((item) => item.active).map((item) => item.label))).sort((a, b) => b.length - a.length) : []), [highlightLabels, references]);
+    const activeLabels = useMemo(() => (highlightLabels ? Array.from(new Set(references.filter((item) => item.active).map((item) => `@${item.label}`))).sort((a, b) => b.length - a.length) : []), [highlightLabels, references]);
 
     const updateValue = (next: string, selectionStart?: number) => {
         onChange(next);
@@ -67,7 +67,7 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
         if (!mention) return;
         const textarea = textareaRef.current;
         const end = textarea?.selectionStart ?? value.length;
-        const insertText = `${reference.label} `;
+        const insertText = `@${reference.label} `;
         const next = `${value.slice(0, mention.start)}${insertText}${value.slice(end)}`;
         closeMention();
         updateValue(next, mention.start + insertText.length);
@@ -324,7 +324,7 @@ function escapeRegExp(value: string) {
 }
 
 // 纯 textarea 无法做真正的原子 token,这里在删除时把整个引用 label 当作一个整体一次删掉,
-// 避免逐字删除把「图片1」删成「图片」。labels 需按长度降序传入以优先匹配更长的 label。
+// 避免逐字删除把「@图片1」删成「@图片」。labels 需按长度降序传入以优先匹配更长的 label。
 function deleteAdjacentLabel(value: string, caret: number, direction: "backward" | "forward", labels: string[]): { value: string; caret: number } | null {
     if (direction === "backward") {
         const before = value.slice(0, caret);

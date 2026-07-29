@@ -58,7 +58,14 @@ export type WebdavSyncConfig = {
     directory: string;
     lastSyncedAt: string;
 };
-export type ConfigTabKey = "channels" | "preferences" | "prompt-sources" | "webdav";
+
+export type R2StorageConfig = {
+    enabled: boolean;
+    workerUrl: string;
+    accessToken: string;
+};
+
+export type ConfigTabKey = "channels" | "preferences" | "prompt-sources" | "r2" | "webdav";
 
 export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
 const CHANNEL_MODEL_SEPARATOR = "::";
@@ -117,14 +124,22 @@ export const defaultWebdavSyncConfig: WebdavSyncConfig = {
     lastSyncedAt: "",
 };
 
+export const defaultR2StorageConfig: R2StorageConfig = {
+    enabled: false,
+    workerUrl: "https://resources-canvas.justhomemaker.com",
+    accessToken: "",
+};
+
 type ConfigStore = {
     config: AiConfig;
     webdav: WebdavSyncConfig;
+    r2: R2StorageConfig;
     isConfigOpen: boolean;
     configTab: ConfigTabKey;
     shouldPromptContinue: boolean;
     updateConfig: <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
     updateWebdavConfig: <K extends keyof WebdavSyncConfig>(key: K, value: WebdavSyncConfig[K]) => void;
+    updateR2Config: <K extends keyof R2StorageConfig>(key: K, value: R2StorageConfig[K]) => void;
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
     openConfigDialog: (shouldPromptContinue?: boolean, tab?: ConfigTabKey) => void;
     setConfigDialogOpen: (isOpen: boolean) => void;
@@ -189,6 +204,7 @@ export const useConfigStore = create<ConfigStore>()(
         (set, get) => ({
             config: defaultConfig,
             webdav: defaultWebdavSyncConfig,
+            r2: defaultR2StorageConfig,
             isConfigOpen: false,
             configTab: "channels",
             shouldPromptContinue: false,
@@ -206,6 +222,13 @@ export const useConfigStore = create<ConfigStore>()(
                         [key]: value,
                     },
                 })),
+            updateR2Config: (key, value) =>
+                set((state) => ({
+                    r2: {
+                        ...state.r2,
+                        [key]: value,
+                    },
+                })),
             isAiConfigReady: (config, model) => isAiConfigReady(config, model),
             openConfigDialog: (shouldPromptContinue = false, configTab = "channels") => set({ isConfigOpen: true, shouldPromptContinue, configTab }),
             setConfigDialogOpen: (isConfigOpen) => set({ isConfigOpen }),
@@ -213,11 +236,12 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
-            partialize: (state) => ({ config: state.config, webdav: state.webdav }),
+            partialize: (state) => ({ config: state.config, webdav: state.webdav, r2: state.r2 }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
                 const persistedConfig = (persistedState.config || {}) as Partial<AiConfig>;
                 const persistedWebdav = (persistedState.webdav || {}) as Partial<WebdavSyncConfig>;
+                const persistedR2 = (persistedState.r2 || {}) as Partial<R2StorageConfig>;
                 const config = { ...defaultConfig, ...persistedConfig };
                 if (!Array.isArray(persistedConfig.channels)) config.channels = [];
                 const channels = normalizeChannels(config);
@@ -225,6 +249,7 @@ export const useConfigStore = create<ConfigStore>()(
                 return {
                     ...current,
                     webdav: { ...defaultWebdavSyncConfig, ...persistedWebdav },
+                    r2: { ...defaultR2StorageConfig, ...persistedR2, workerUrl: persistedR2.workerUrl?.trim() || defaultR2StorageConfig.workerUrl },
                     config: {
                         ...config,
                         channelMode: "local",
