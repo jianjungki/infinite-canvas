@@ -6,7 +6,7 @@ import { saveAs } from "file-saver";
 
 import { requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
 import { requestAudioGeneration, storeGeneratedAudio } from "@/services/api/audio";
-import { requestVideoGeneration, storeGeneratedVideo, VideoGenerationTaskFailedError } from "@/services/api/video";
+import { createVideoGenerationTask, storeGeneratedVideo, VideoGenerationTaskFailedError, waitForVideoGenerationTask, type VideoGenerationTask } from "@/services/api/video";
 import { defaultConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { uploadImage } from "@/services/image-storage";
 import { uploadMediaFile } from "@/services/file-storage";
@@ -286,6 +286,17 @@ function InfiniteCanvasPage() {
         const request = generationRequestsRef.current.get(targetNodeId);
         if (request?.controller === controller) generationRequestsRef.current.delete(targetNodeId);
     }, []);
+
+    const persistCanvasVideoTask = useCallback(
+        async (nodeId: string, task: VideoGenerationTask) => {
+            const nextNodes = nodesRef.current.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_LOADING, errorDetails: undefined, videoTask: task } } : node));
+            nodesRef.current = nextNodes;
+            setNodes(nextNodes);
+            updateProject(projectId, { nodes: nextNodes });
+            await flushCanvasStorePersistence();
+        },
+        [projectId, updateProject],
+    );
 
     const stopGenerationByRunningId = useCallback((runningId: string) => {
         const affectedNodeIds = new Set<string>();
@@ -2317,9 +2328,10 @@ function InfiniteCanvasPage() {
                     if (!isEmptyVideoNode) setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: nodeId, toNodeId: videoId }]);
                     const controller = startGenerationRequest(videoId, nodeId, nodeId, runController);
                     try {
-                        const video = await storeGeneratedVideo(
-                            await requestVideoGeneration(generationConfig, effectivePrompt, generationContext.referenceImages, generationContext.referenceVideos, generationContext.referenceAudios, { signal: controller.signal }),
-                        );
+                        const task = await createVideoGenerationTask(generationConfig, effectivePrompt, generationContext.referenceImages, generationContext.referenceVideos, generationContext.referenceAudios, { signal: controller.signal });
+                        resumedVideoTaskIdsRef.current.add(task.id);
+                        await persistCanvasVideoTask(videoId, task);
+                        const video = await storeGeneratedVideo(await waitForVideoGenerationTask(generationConfig, task, { signal: controller.signal }));
                         const videoSize = fitNodeSize(video.width || spec.width, video.height || spec.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
                         setNodes((prev) =>
                             prev.map((node) =>
@@ -2340,6 +2352,8 @@ function InfiniteCanvasPage() {
                                               generateAudio: generationConfig.videoGenerateAudio,
                                               watermark: generationConfig.videoWatermark,
                                               references: generationReferenceUrls(generationContext),
+                                              videoTask: undefined,
+                                              errorDetails: undefined,
                                           },
                                       }
                                     : node,
@@ -2458,7 +2472,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest],
+        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, persistCanvasVideoTask, startGenerationRequest],
     );
 
     const resumeCanvasVideoTask = useCallback(
@@ -2576,7 +2590,7 @@ function InfiniteCanvasPage() {
                 if (node.type === CanvasNodeType.Video) {
                     const task = await createVideoGenerationTask(generationConfig, prompt, retryImages, context?.referenceVideos || [], context?.referenceAudios || [], { signal: controller.signal });
                     resumedVideoTaskIdsRef.current.add(task.id);
-                    setNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, metadata: { ...item.metadata, videoTask: task } } : item)));
+                    await persistCanvasVideoTask(node.id, task);
                     const video = await storeGeneratedVideo(await waitForVideoGenerationTask(generationConfig, task, { signal: controller.signal }));
                     const videoSize = fitNodeSize(video.width || node.width, video.height || node.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
                     setNodes((prev) =>
@@ -2597,6 +2611,8 @@ function InfiniteCanvasPage() {
                                           vquality: generationConfig.vquality,
                                           generateAudio: generationConfig.videoGenerateAudio,
                                           watermark: generationConfig.videoWatermark,
+                                          videoTask: undefined,
+                                          errorDetails: undefined,
                                       },
                                   }
                                 : item,
@@ -2650,7 +2666,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, resumeCanvasVideoTask, startGenerationRequest],
+        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, persistCanvasVideoTask, resumeCanvasVideoTask, startGenerationRequest],
     );
 
     const generateImageFromTextNode = useCallback(

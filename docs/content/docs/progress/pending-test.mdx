@@ -7,7 +7,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 - Docker 镜像发布：`main` 更新、`v*` 标签和手动运行 Build Docker image 应完成前端构建并发布 amd64/arm64 多架构镜像；`latest`、版本号、自定义标签和 `sha-*` 标签应可直接拉取，Actions 摘要应显示更新命令。
 - 画布视频生成落盘：提交或完成视频生成后不应再出现 `flushCanvasStorePersistence is not defined`，离开画布或刷新页面后生成节点、任务状态及视口应保持为最新状态。
-- 画布视频失败处理：视频供应商返回终态失败时，画布应正常显示节点错误状态和原始失败信息，不应再出现 `VideoGenerationTaskFailedError is not defined` 或跳转到应用错误页。
+- 画布视频失败处理：视频供应商返回终态失败时，画布应正常显示节点错误状态和原始失败信息；再次重试应创建新任务并继续轮询，不应再出现 `VideoGenerationTaskFailedError is not defined`、`createVideoGenerationTask is not defined`、`waitForVideoGenerationTask is not defined` 或跳转到应用错误页。
 - 生图工作台图片引用：上传多张参考图后，在提示词中输入 `@` 应弹出带缩略图的图片编号列表；选择后插入 `@图片N` 并高亮显示，生成请求应携带上传图片且只按提示词中出现的 `@图片N` 理解对应引用。
 - Cloudflare R2：按 `cloudflare/r2-worker/README.md` 部署 Worker，确认 `https://resources-canvas.justhomemaker.com` 允许正式前端 `https://canvas.justhomemaker.com` 访问，并配置访问令牌；在配置页测试连接并启用同步后，新上传或生成的图片应写入 R2 的 `images/`，刷新页面后仍可加载、导出和删除；提示词来源成功拉取后应写入 `prompt-sources/`，封面及说明中的参考图应后台下载到 `prompt-images/` 并从 R2 显示，清除浏览器的提示词缓存后应能从 R2 恢复。
 - 画布参考图：图片节点顶部工具条可在“内容参考 / 风格参考”之间切换；连接到生成配置后，节点角标和输入摘要应分别显示两类数量，图片与视频生成应按角色组织提示词。
